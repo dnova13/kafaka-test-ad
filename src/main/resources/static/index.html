@@ -1,0 +1,194 @@
+<!-- Claude 추가: adLog/purchaseLog 테스트 produce + AdEvaluationComplete 결과(DB) 조회용 로컬 프론트 페이지.
+     Spring Boot가 static 폴더를 그대로 서빙해주므로 http://localhost:8080/ 로 접속하면 됨.
+     같은 오리진(localhost:8080)에서 API를 호출하므로 CORS 설정이 필요 없음.
+     입력 방식을 드롭박스로 JSON 직접입력 / 필드별 입력상자 두 가지로 전환 가능. -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>AdEvaluationService 테스트 콘솔</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 16px; margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  textarea { width: 100%; height: 100px; font-family: monospace; font-size: 13px; box-sizing: border-box; }
+  select { margin-bottom: 10px; padding: 4px; }
+  button { margin-top: 8px; padding: 8px 16px; cursor: pointer; }
+  .status { margin-left: 10px; font-size: 13px; color: #666; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+  th { background: #f5f5f5; }
+  .hint { color: #888; font-size: 12px; }
+  .field-row { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .field-row label { display: flex; flex-direction: column; font-size: 12px; color: #555; flex: 1; min-width: 140px; }
+  .field-row input { padding: 6px; font-size: 13px; margin-top: 2px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<h1>AdEvaluationService 테스트 콘솔</h1>
+<p class="hint">adLog / purchaseLog를 보내고, 조인 결과(AdEvaluationComplete → Postgres 저장분)를 확인합니다.</p>
+
+<h2>1. adLog 보내기</h2>
+<p class="hint">userId + productId가 아래 purchaseLog의 productInfo 안 productId와 같아야 매칭됩니다.</p>
+
+<select id="adLogMode" onchange="toggleMode('adLog')">
+  <option value="fields" selected>폼 입력</option>
+  <option value="json">JSON</option>
+</select>
+
+<div id="adLogJsonBox" hidden>
+  <textarea id="adLogInput">{"userId": "uid-0005", "productId": "pg-0022", "adId": "ad-101", "adType": "banner", "watchingTime": "30", "watchingDt": "20230201070000"}</textarea>
+</div>
+
+<div id="adLogFieldsBox">
+  <div class="field-row">
+    <label>userId <input id="adLog_userId" value="uid-0005"></label>
+    <label>productId <input id="adLog_productId" value="pg-0022"></label>
+    <label>adId <input id="adLog_adId" value="ad-101"></label>
+  </div>
+  <div class="field-row">
+    <label>adType <input id="adLog_adType" value="banner"></label>
+    <label>watchingTime(초) <input id="adLog_watchingTime" value="30"></label>
+    <label>watchingDt <input id="adLog_watchingDt" value="20230201070000"></label>
+  </div>
+</div>
+
+<button onclick="sendAdLog()">adLog 전송</button>
+<span class="status" id="adLogStatus"></span>
+
+<h2>2. purchaseLog 보내기</h2>
+<p class="hint">productInfo는 배열([{productId, price}, ...])이어야 합니다. 폼 입력 모드는 상품 1개만 지원 — 상품 여러 개를 보내려면 JSON 모드를 쓰세요.</p>
+
+<select id="purchaseLogMode" onchange="toggleMode('purchaseLog')">
+  <option value="fields" selected>폼 입력</option>
+  <option value="json">JSON</option>
+</select>
+
+<div id="purchaseLogJsonBox" hidden>
+  <textarea id="purchaseLogInput">{ "orderId": "od-0005", "userId": "uid-0005", "productInfo": [{"productId": "pg-0023", "price":"12000"}, {"productId":"pg-0022", "price":"13500"}], "purchasedDt": "20230201070000", "price": 24000}</textarea>
+</div>
+
+<div id="purchaseLogFieldsBox">
+  <div class="field-row">
+    <label>orderId <input id="purchaseLog_orderId" value="od-0005"></label>
+    <label>userId <input id="purchaseLog_userId" value="uid-0005"></label>
+    <label>purchasedDt <input id="purchaseLog_purchasedDt" value="20230201070000"></label>
+  </div>
+  <div class="field-row">
+    <label>price(주문 총액) <input id="purchaseLog_price" value="24000"></label>
+    <label>productId (상품) <input id="purchaseLog_productId" value="pg-0022"></label>
+    <label>price (상품 단가) <input id="purchaseLog_productPrice" value="13500"></label>
+  </div>
+</div>
+
+<button onclick="sendPurchaseLog()">purchaseLog 전송</button>
+<span class="status" id="purchaseLogStatus"></span>
+
+<h2>3. AdEvaluationComplete 결과 (DB 저장분, 3초마다 자동 갱신)</h2>
+<table>
+  <thead>
+    <tr><th>id</th><th>adId</th><th>userId</th><th>orderId</th><th>productId</th><th>price</th><th>receivedAt</th></tr>
+  </thead>
+  <tbody id="resultsBody"></tbody>
+</table>
+
+<script>
+function toggleMode(name) {
+  const mode = document.getElementById(name + 'Mode').value;
+  document.getElementById(name + 'JsonBox').hidden = (mode !== 'json');
+  document.getElementById(name + 'FieldsBox').hidden = (mode !== 'fields');
+}
+
+function val(id) {
+  return document.getElementById(id).value;
+}
+
+async function postJson(topic, statusEl, obj) {
+  try {
+    const res = await fetch('/' + topic, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(obj)
+    });
+    statusEl.textContent = res.ok ? '전송 완료 (' + new Date().toLocaleTimeString() + ')' : 'HTTP ' + res.status;
+    statusEl.style.color = res.ok ? 'green' : 'red';
+  } catch (e) {
+    statusEl.textContent = '전송 실패: ' + e.message;
+    statusEl.style.color = 'red';
+  }
+}
+
+async function sendAdLog() {
+  const statusEl = document.getElementById('adLogStatus');
+  const mode = document.getElementById('adLogMode').value;
+
+  if (mode === 'json') {
+    const text = document.getElementById('adLogInput').value;
+    try {
+      const obj = JSON.parse(text);
+      await postJson('adLog', statusEl, obj);
+    } catch (e) {
+      statusEl.textContent = 'JSON 파싱 실패: ' + e.message;
+      statusEl.style.color = 'red';
+    }
+  } else {
+    const obj = {
+      userId: val('adLog_userId'),
+      productId: val('adLog_productId'),
+      adId: val('adLog_adId'),
+      adType: val('adLog_adType'),
+      watchingTime: val('adLog_watchingTime'),
+      watchingDt: val('adLog_watchingDt')
+    };
+    await postJson('adLog', statusEl, obj);
+  }
+}
+
+async function sendPurchaseLog() {
+  const statusEl = document.getElementById('purchaseLogStatus');
+  const mode = document.getElementById('purchaseLogMode').value;
+
+  if (mode === 'json') {
+    const text = document.getElementById('purchaseLogInput').value;
+    try {
+      const obj = JSON.parse(text);
+      await postJson('purchaseLog', statusEl, obj);
+    } catch (e) {
+      statusEl.textContent = 'JSON 파싱 실패: ' + e.message;
+      statusEl.style.color = 'red';
+    }
+  } else {
+    const obj = {
+      orderId: val('purchaseLog_orderId'),
+      userId: val('purchaseLog_userId'),
+      purchasedDt: val('purchaseLog_purchasedDt'),
+      price: Number(val('purchaseLog_price')),
+      productInfo: [
+        { productId: val('purchaseLog_productId'), price: val('purchaseLog_productPrice') }
+      ]
+    };
+    await postJson('purchaseLog', statusEl, obj);
+  }
+}
+
+async function refreshResults() {
+  try {
+    const res = await fetch('/ad-evaluation-results');
+    const rows = await res.json();
+    const tbody = document.getElementById('resultsBody');
+    tbody.innerHTML = rows.map(r =>
+      `<tr><td>${r.id}</td><td>${r.adId ?? ''}</td><td>${r.userId ?? ''}</td><td>${r.orderId ?? ''}</td><td>${r.productId ?? ''}</td><td>${r.price ?? ''}</td><td>${r.receivedAt ?? ''}</td></tr>`
+    ).join('');
+  } catch (e) {
+    console.error('결과 조회 실패', e);
+  }
+}
+
+refreshResults();
+setInterval(refreshResults, 3000);
+</script>
+
+</body>
+</html>
