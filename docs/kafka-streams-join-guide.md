@@ -170,4 +170,4 @@ purchaseLogOneProduct : {"userId":"uid-0001","productId":"pg-0001","price":"1200
 
 ## 관련 테스트 명령어
 
-CLI로 직접 재현해보는 명령어는 [kafka-console-consumer-notes.md](./kafka-console-consumer-notes.md)의 "StreamService 데모 테스트 커맨드" 섹션 참고.
+CLI로 직접 재현해보는 명령어는 [kafka-console-consumer-notes.md](kafka-console-consumer-notes.md)의 "StreamService 데모 테스트 커맨드" 섹션 참고.

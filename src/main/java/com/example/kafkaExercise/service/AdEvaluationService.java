@@ -118,6 +118,10 @@ public class AdEvaluationService {
                 .toStream().to("AdEvaluationComplete", Produced.with(Serdes.String(), effectOrNotSerde));
     }
 
+    // Claude 추가(상세 주석): adLog + purchaseLog 한 쌍을 랜덤 값으로 자동 생성해서 실제로 카프카에
+    // produce하는 테스트용 헬퍼. AdEvaluationService 파이프라인을 손으로 JSON 안 만들고 바로 테스트하려고
+    // 만든 것으로 보이나, 원래 이 클래스/다른 코드 어디에서도 호출되지 않던 "고아 메서드"였음.
+    // 이번에 ProducerController의 POST /gen-test-data 에 연결해서 실제로 호출 가능하게 만듦.
     public void sendNewMsg() {
         PurchaseLog tempPurchaseLog = new PurchaseLog();
         WatchingAdLog tempWatchingAdLog = new WatchingAdLog();
@@ -125,35 +129,50 @@ public class AdEvaluationService {
         //랜덤한 ID를 생성하기 위해 아래의 함수를 사용합니다.
         // random Numbers for concatenation with attrs
         Random rd = new Random();
-        int rdUidNumber = rd.nextInt(9999);
-        int rdOrderNumber = rd.nextInt(9999);
-        int rdProdIdNumber = rd.nextInt(9999);
-        int rdPriceIdNumber = rd.nextInt(90000) + 10000;
-        int prodCnt = rd.nextInt(9) + 1;
-        int watchingTime = rd.nextInt(55) + 5;
+        int rdUidNumber = rd.nextInt(9999);       // 유저 번호 (adLog/purchaseLog 둘 다 이 번호로 userId를 맞춤 -> join key 일치 보장)
+        int rdOrderNumber = rd.nextInt(9999);      // 주문 번호 (purchaseLog의 orderId에만 사용)
+        int rdProdIdNumber = rd.nextInt(9999);     // 상품 번호 (adLog의 productId & purchaseLog 상품 중 1개를 이 번호로 맞춤 -> join key 일치 보장)
+        int rdPriceIdNumber = rd.nextInt(90000) + 10000; // 참고: 지금은 안 쓰임(가격은 아래 반복문 안에서 매번 새로 뽑음)
+        int prodCnt = rd.nextInt(9) + 1;           // 이번 주문에 담을 상품 개수 (1~9개)
+        int watchingTime = rd.nextInt(55) + 5;     // 광고 시청 시간 5~59초 (10초 이하로 나오면 AdEvaluationService의
+                                                    // filter(watchingTime > 10) 조건에서 걸러져서 조인이 안 될 수 있음)
 
         // bind value for purchaseLog
         tempPurchaseLog.setUserId("uid-" + String.format("%05d", rdUidNumber));
-        tempPurchaseLog.setPurchasedDt("20230101070000");
+        tempPurchaseLog.setPurchasedDt("20230101070000"); // 날짜는 고정값(랜덤 아님, 테스트용이라 의미 없어서 안 바꾼 듯)
         tempPurchaseLog.setOrderId("od-" + String.format("%05d", rdOrderNumber));
+
+        // Claude 수정: 원래 코드는 tempProd(Map)를 반복문 밖에서 한 번만 만들고 매번 그 안의 값만
+        // 덮어써서 리스트에 넣었기 때문에, 실제로는 "같은 상품이 prodCnt번 중복"되어 들어갔음
+        // (Map은 참조 타입이라 나중에 값을 바꿔도 리스트 안 다른 원소들까지 같이 바뀌는 거나 마찬가지).
+        // -> 매 반복마다 새 Map을 만들도록 수정. 단, adLog와 매칭을 보장하기 위해 첫 번째 상품(i=0)만은
+        // adLog의 productId(rdProdIdNumber)와 반드시 같게 유지하고, 나머지는 서로 다른 랜덤 상품으로 생성.
         ArrayList<Map<String, String>> tempProdInfo = new ArrayList<>();
-        Map<String, String> tempProd = new HashMap<>();
+
         for (int i = 0; i < prodCnt; i++) {
-            tempProd.put("productId", "pg-" + String.format("%05d", rdProdIdNumber));
-            tempProd.put("price", String.format("%05d", rdPriceIdNumber));
+            Map<String, String> tempProd = new HashMap<>();
+            String productId = (i == 0)
+                    ? "pg-" + String.format("%05d", rdProdIdNumber) // adLog와 매칭되는 상품
+                    : "pg-" + String.format("%05d", rd.nextInt(9999)); // 매칭 안 되는 나머지 상품들
+            tempProd.put("productId", productId);
+            tempProd.put("price", String.format("%05d", rd.nextInt(90000) + 10000));
             tempProdInfo.add(tempProd);
         }
         tempPurchaseLog.setProductInfo(tempProdInfo);
 
         // bind value for watchingAdLog
+        // userId, productId를 위 purchaseLog와 똑같은 랜덤 번호(rdUidNumber, rdProdIdNumber)로 맞춰서
+        // AdEvaluationService의 join key(userId_productId)가 반드시 일치하도록 의도적으로 구성함.
         tempWatchingAdLog.setUserId("uid-" + String.format("%05d", rdUidNumber));
         tempWatchingAdLog.setProductId("pg-" + String.format("%05d", rdProdIdNumber));
-        tempWatchingAdLog.setAdId("ad-" + String.format("%05d", rdUidNumber));
+        tempWatchingAdLog.setAdId("ad-" + String.format("%05d", rdUidNumber)); // adId는 별도 규칙 없이 그냥 uid 번호 재사용
         tempWatchingAdLog.setAdType("banner");
         tempWatchingAdLog.setWatchingTime(String.valueOf(watchingTime));
-        tempWatchingAdLog.setWatchingDt("20230201070000");
+        tempWatchingAdLog.setWatchingDt("20230201070000"); // 날짜도 고정값(랜덤 아님)
 
-        // produce msg
+        // produce msg - 순서상 purchaseLog를 먼저 보내지만, 어차피 두 토픽 다 KTable로 받고 시간창 없는
+        // KTable-KTable join이라 어느 쪽이 먼저/나중에 와도 상관없이 나중에 join된다(StreamService의
+        // KStream-KStream join처럼 "10초 이내에 순서 상관없이 와야 하는" 제약이 없음).
         myprdc.sendMsgForPurchaseLog("purchaseLog", tempPurchaseLog);
         myprdc.sendMsgForWatchingAdLog("adLog", tempWatchingAdLog);
     }

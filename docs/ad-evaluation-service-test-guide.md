@@ -66,7 +66,7 @@
 
 ## 우리 환경(도커)에서 재현하는 법
 
-터미널 4개 대신, 아래 4개 명령을 각각 다른 터미널 탭에서 실행하면 된다. `--network 3_cluster-zookeeper_default`로 붙는 이유와 `kafka-1:29092,kafka-2:29092,kafka-3:29092`(INTERNAL 리스너)를 쓰는 이유는 [kafka-console-consumer-notes.md](./kafka-console-consumer-notes.md) 참고. 호스트에 `brew install kafka`로 CLI를 깔았다면 `localhost:9092,localhost:9093,localhost:9094`로 바꿔써도 동일하다.
+터미널 4개 대신, 아래 4개 명령을 각각 다른 터미널 탭에서 실행하면 된다. `--network 3_cluster-zookeeper_default`로 붙는 이유와 `kafka-1:29092,kafka-2:29092,kafka-3:29092`(INTERNAL 리스너)를 쓰는 이유는 [kafka-console-consumer-notes.md](kafka-console-consumer-notes.md) 참고. 호스트에 `brew install kafka`로 CLI를 깔았다면 `localhost:9092,localhost:9093,localhost:9094`로 바꿔써도 동일하다.
 
 ### 1) adLog 프로듀서
 ```bash

@@ -2,6 +2,7 @@ package com.example.kafkaExercise.controller;
 
 import com.example.kafkaExercise.entity.AdEvaluationResult;
 import com.example.kafkaExercise.repository.AdEvaluationResultRepository;
+import com.example.kafkaExercise.service.AdEvaluationService;
 import com.example.kafkaExercise.service.Producer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,8 @@ public class ProducerController {
     private final Producer producer;
     // Claude 추가: 프론트 페이지용 - adLog/purchaseLog produce, AdEvaluationComplete 결과 조회
     private final AdEvaluationResultRepository adEvaluationResultRepository;
+    // Claude 추가: sendNewMsg() 호출용 (랜덤 테스트 데이터 생성)
+    private final AdEvaluationService adEvaluationService;
 
     @PostMapping("/message")
     public void PublishMessage(@RequestParam String msg) {
@@ -47,5 +50,12 @@ public class ProducerController {
     @GetMapping("/ad-evaluation-results")
     public List<AdEvaluationResult> getAdEvaluationResults() {
         return adEvaluationResultRepository.findAllByOrderByReceivedAtDesc();
+    }
+
+    // Claude 추가: 어디에서도 호출 안 되던 AdEvaluationService.sendNewMsg()를 연결.
+    // 호출할 때마다 매칭되는 adLog+purchaseLog 한 쌍을 랜덤 값으로 생성해서 카프카에 produce함.
+    @PostMapping("/gen-test-data")
+    public void generateTestData() {
+        adEvaluationService.sendNewMsg();
     }
 }

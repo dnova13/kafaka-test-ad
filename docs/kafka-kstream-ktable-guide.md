@@ -78,7 +78,7 @@ KTable<String, String> table = sb.table("myTopic", ...);
 
 ## 실제로 왜 구분해서 쓰는가 — Join에서 드러나는 차이
 
-이 프로젝트에 세 가지 조인이 있는데, 이 차이 때문에 코드가 달라진다. (자세한 예시는 [kafka-streams-join-guide.md](./kafka-streams-join-guide.md) 참고)
+이 프로젝트에 세 가지 조인이 있는데, 이 차이 때문에 코드가 달라진다. (자세한 예시는 [kafka-streams-join-guide.md](kafka-streams-join-guide.md) 참고)
 
 | | `StreamService` (KStream-KStream) | `KTableService` (KTable-KTable) | `AdEvaluationService` (KTable-KTable) |
 |---|---|---|---|

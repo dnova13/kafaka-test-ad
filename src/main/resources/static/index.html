@@ -30,6 +30,11 @@
 <h1>AdEvaluationService 테스트 콘솔</h1>
 <p class="hint">adLog / purchaseLog를 보내고, 조인 결과(AdEvaluationComplete → Postgres 저장분)를 확인합니다.</p>
 
+<h2>0. 랜덤 테스트 데이터 자동 생성</h2>
+<p class="hint">버튼 누를 때마다 매칭되는 adLog + purchaseLog 한 쌍을 랜덤 값으로 만들어서 바로 전송합니다 (수동 입력 없이 빠르게 테스트할 때 사용).</p>
+<button onclick="genTestData()">랜덤 테스트 데이터 생성</button>
+<span class="status" id="genTestDataStatus"></span>
+
 <h2>1. adLog 보내기</h2>
 <p class="hint">userId + productId가 아래 purchaseLog의 productInfo 안 productId와 같아야 매칭됩니다.</p>
 
@@ -95,6 +100,18 @@
 </table>
 
 <script>
+async function genTestData() {
+  const statusEl = document.getElementById('genTestDataStatus');
+  try {
+    const res = await fetch('/gen-test-data', { method: 'POST' });
+    statusEl.textContent = res.ok ? '생성 완료 (' + new Date().toLocaleTimeString() + ')' : 'HTTP ' + res.status;
+    statusEl.style.color = res.ok ? 'green' : 'red';
+  } catch (e) {
+    statusEl.textContent = '실패: ' + e.message;
+    statusEl.style.color = 'red';
+  }
+}
+
 function toggleMode(name) {
   const mode = document.getElementById(name + 'Mode').value;
   document.getElementById(name + 'JsonBox').hidden = (mode !== 'json');

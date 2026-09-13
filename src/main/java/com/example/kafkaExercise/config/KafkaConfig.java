@@ -39,53 +39,6 @@ public class KafkaConfig {
         return new KafkaAdmin(configs);
     }
 
-    // Claude 추가: KafkaAdmin이 앱 기동 시 아래 NewTopic 빈들을 보고 없는 토픽만 자동으로 생성함
-    // (원래 코드엔 토픽 자동 생성 로직이 없어서 Kafka Streams가 MissingSourceTopicException으로 죽던 문제 해결용)
-    // join 대상 토픽들은 co-partitioning을 위해 파티션 수를 동일하게 맞춰야 함
-    @Bean
-    public NewTopic adLogTopic() {
-        return TopicBuilder.name("adLog").partitions(3).replicas(3).build();
-    }
-
-    @Bean
-    public NewTopic purchaseLogTopic() {
-        return TopicBuilder.name("purchaseLog").partitions(3).replicas(3).build();
-    }
-
-    @Bean
-    public NewTopic purchaseLogOneProductTopic() {
-        return TopicBuilder.name("purchaseLogOneProduct").partitions(3).replicas(3).build();
-    }
-
-    @Bean
-    public NewTopic adEvaluationCompleteTopic() {
-        return TopicBuilder.name("AdEvaluationComplete").partitions(3).replicas(3).build();
-    }
-
-    // Claude 추가: /smp-msg 테스트 엔드포인트용 토픽
-    @Bean
-    public NewTopic simpleMessageTopic() {
-        return TopicBuilder.name("simpleMessage").partitions(3).replicas(3).build();
-    }
-
-    // Claude 추가: Producer.pub()/pubString()이 쓰는 topicName("defaultTopic")도 기동 시 미리 생성
-    @Bean
-    public NewTopic defaultTopic() {
-        return TopicBuilder.name("defaultTopic").partitions(3).replicas(3).build();
-    }
-
-    // Claude 추가: StreamService의 KStream-KStream join 데모가 구독하는 소스 토픽.
-    // 이게 없으면 MissingSourceTopicException으로 앱 전체 Kafka Streams 클라이언트가 죽음.
-    // 둘이 서로 join되는 관계라 co-partitioning을 위해 파티션 수를 동일하게 맞춤.
-    @Bean
-    public NewTopic leftTopic() {
-        return TopicBuilder.name("leftTopic").partitions(3).replicas(3).build();
-    }
-
-    @Bean
-    public NewTopic rightTopic() {
-        return TopicBuilder.name("rightTopic").partitions(3).replicas(3).build();
-    }
 
     @Bean(name = KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME)
     public KafkaStreamsConfiguration myKStreamConfig() {
@@ -168,6 +121,56 @@ public class KafkaConfig {
 
         return new DefaultKafkaProducerFactory<>(myConfig);
     }
+
+
+    // Claude 추가: KafkaAdmin이 앱 기동 시 아래 NewTopic 빈들을 보고 없는 토픽만 자동으로 생성함
+    // (원래 코드엔 토픽 자동 생성 로직이 없어서 Kafka Streams가 MissingSourceTopicException으로 죽던 문제 해결용)
+    // join 대상 토픽들은 co-partitioning을 위해 파티션 수를 동일하게 맞춰야 함
+    @Bean
+    public NewTopic adLogTopic() {
+        return TopicBuilder.name("adLog").partitions(3).replicas(3).build();
+    }
+
+    @Bean
+    public NewTopic purchaseLogTopic() {
+        return TopicBuilder.name("purchaseLog").partitions(3).replicas(3).build();
+    }
+
+    @Bean
+    public NewTopic purchaseLogOneProductTopic() {
+        return TopicBuilder.name("purchaseLogOneProduct").partitions(3).replicas(3).build();
+    }
+
+    @Bean
+    public NewTopic adEvaluationCompleteTopic() {
+        return TopicBuilder.name("AdEvaluationComplete").partitions(3).replicas(3).build();
+    }
+
+    // Claude 추가: /smp-msg 테스트 엔드포인트용 토픽
+    @Bean
+    public NewTopic simpleMessageTopic() {
+        return TopicBuilder.name("simpleMessage").partitions(3).replicas(3).build();
+    }
+
+    // Claude 추가: Producer.pub()/pubString()이 쓰는 topicName("defaultTopic")도 기동 시 미리 생성
+    @Bean
+    public NewTopic defaultTopic() {
+        return TopicBuilder.name("defaultTopic").partitions(3).replicas(3).build();
+    }
+
+    // Claude 추가: StreamService의 KStream-KStream join 데모가 구독하는 소스 토픽.
+    // 이게 없으면 MissingSourceTopicException으로 앱 전체 Kafka Streams 클라이언트가 죽음.
+    // 둘이 서로 join되는 관계라 co-partitioning을 위해 파티션 수를 동일하게 맞춤.
+    @Bean
+    public NewTopic leftTopic() {
+        return TopicBuilder.name("leftTopic").partitions(3).replicas(3).build();
+    }
+
+    @Bean
+    public NewTopic rightTopic() {
+        return TopicBuilder.name("rightTopic").partitions(3).replicas(3).build();
+    }
+
 //
 //    @Bean
 //    public ConsumerFactory<String, Object> ConsumerFactory() {
